@@ -1,0 +1,7 @@
+path: /home/ding/Documents/code/robocup/dataset/dataset
+train: images/train
+val: images/val
+test: images/test
+
+names:
+  0: robocup
