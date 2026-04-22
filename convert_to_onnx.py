@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import shutil
 from pathlib import Path
 
 
@@ -15,15 +16,15 @@ def parse_args() -> argparse.Namespace:
         "-w",
         "--weights",
         type=Path,
-        default=Path("best.pt"),
-        help="Path to the .pt model (default: best.pt).",
+        default=Path("models/model.pt"),
+        help="Path to the .pt model (default: models/model.pt).",
     )
     parser.add_argument(
         "-o",
         "--output",
-        type=str,
+        type=Path,
         default=None,
-        help="Output ONNX filename (default: same stem as weights).",
+        help="Output ONNX path (default: same directory and stem as weights).",
     )
     parser.add_argument(
         "--imgsz",
@@ -69,6 +70,11 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    project_root = Path(__file__).resolve().parent
+    weights_path = args.weights if args.weights.is_absolute() else project_root / args.weights
+    output_path = (
+        args.output if args.output is None or args.output.is_absolute() else project_root / args.output
+    )
 
     try:
         from ultralytics import YOLO
@@ -77,8 +83,8 @@ def main() -> None:
             "ultralytics is not installed. Install it with: pip install ultralytics"
         ) from exc
 
-    if not args.weights.exists():
-        raise FileNotFoundError(f"Weights file not found: {args.weights}")
+    if not weights_path.exists():
+        raise FileNotFoundError(f"Weights file not found: {weights_path}")
 
     if args.imgsz <= 0:
         raise ValueError("--imgsz must be a positive integer")
@@ -89,23 +95,30 @@ def main() -> None:
     if args.half and str(args.device).lower() == "cpu":
         raise ValueError("--half is usually not supported on CPU export; use GPU device.")
 
-    output_name = args.output or f"{args.weights.stem}.onnx"
+    if output_path is None:
+        output_path = weights_path.with_suffix(".onnx")
 
-    print(f"Loading model: {args.weights}")
-    model = YOLO(str(args.weights))
+    print(f"Loading model: {weights_path}")
+    model = YOLO(str(weights_path))
 
     print("Exporting to ONNX...")
-    exported_path = model.export(
-        format="onnx",
-        imgsz=args.imgsz,
-        batch=args.batch,
-        opset=args.opset,
-        device=args.device,
-        half=args.half,
-        dynamic=args.dynamic,
-        simplify=args.simplify,
-        name=output_name,
+    exported_path = Path(
+        model.export(
+            format="onnx",
+            imgsz=args.imgsz,
+            batch=args.batch,
+            opset=args.opset,
+            device=args.device,
+            half=args.half,
+            dynamic=args.dynamic,
+            simplify=args.simplify,
+        )
     )
+
+    if exported_path.resolve() != output_path.resolve():
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(exported_path), str(output_path))
+        exported_path = output_path
 
     print(f"Export finished: {exported_path}")
 

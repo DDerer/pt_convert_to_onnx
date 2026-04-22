@@ -1,9 +1,0 @@
-from ultralytics import YOLO
-
-# 加载best.pt模型
-model = YOLO("best.pt")
-
-# 导出为ONNX格式
-model.export(format="onnx", imgsz=640, half=False)
-
-print("转换完成：best.pt -> best.onnx")
